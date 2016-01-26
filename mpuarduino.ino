@@ -127,15 +127,19 @@ void getMag(vector<int16_t> *m) {
 
 /*
  * get the current, tilt-compensated, heading
+ * !!! WARNING !!!
+ * ! while it runs fine at the beginning, something breaks at some point
+ * ! in execution. use with caution!
+ * !!! WARNING !!!
  */
-double getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
-  double heading;
+float getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
+  float heading;
 
   // convert to [-1; 1]
-  vector<double> *realA = new vector<double>();
-  realA->x = (double) a->x / (1 << 15) * ACC_SCALE;
-  realA->y = (double) a->y / (1 << 15) * ACC_SCALE;
-  realA->z = (double) a->z / (1 << 15) * ACC_SCALE;
+  vector<float> *realA = new vector<float>();
+  realA->x = (float) a->x / (1 << 15) * ACC_SCALE;
+  realA->y = (float) a->y / (1 << 15) * ACC_SCALE;
+  realA->z = (float) a->z / (1 << 15) * ACC_SCALE;
 
   // DEBUG warnings
   // if ((realA->x < -1) || (realA->x > 1)) {
@@ -164,7 +168,7 @@ double getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
   heading = round(180 * atan2(yh, xh)/PI);
   if (heading < 0) heading += 360;
 
-  return (int(heading));
+  return (heading);
 }
 
 /*
@@ -242,10 +246,13 @@ void setup()
 void loop() {
   // collect samples accel and gyro
   getAccelGyro(accel, gyro);
+  // run filter
   filter(accel, accel_flt, 0.5);
   filter(gyro, gyro_flt, 0.5);
   // collect samples from mag
   getMag(mag);
+  // run filter
+  filter(mag, mag_flt, 0.5);
 
   /*
    * Display time & all values
@@ -258,9 +265,9 @@ void loop() {
   /*
    * Display time & accel, mag, tilt heading, heading
    */
-  sprintf(printBuf, "[%8ld] [accel %6d/%6d/%6d] [mag%6d/%6d/%6d] [th %3d, h %3d]",
-      millis() - ti, accel->x, accel->y, accel->z, mag->x, mag->y, mag->z,
-      int(getTiltHeading(accel, mag)), getHeading(mag));
+  // sprintf(printBuf, "[%8ld] [accel %6d/%6d/%6d] [mag%6d/%6d/%6d] [th %3d, h %3d]",
+  //     millis() - ti, accel->x, accel->y, accel->z, mag->x, mag->y, mag->z,
+  //     int(getTiltHeading(accel, mag)), getHeading(mag));
 
   /*
    * Display time & tilt heading & heading
@@ -271,7 +278,7 @@ void loop() {
   /*
    * Display time & heading
    */
-  // sprintf(printBuf, "[%8ld] h: %3d", millis() - ti, getHeading(mag));
+  sprintf(printBuf, "[%8ld] h: %3d", millis() - ti, getHeading(mag));
 
   /*
    * Display time & tilt heading
