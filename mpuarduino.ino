@@ -1,11 +1,32 @@
 #include <Wire.h>
 #include <math.h>
+#include <SpeedTrig.h>
 
 #define    MPU9250_ADDRESS            0x68
 #define    MAG_ADDRESS                0x0C
 // REGISTERS
 #define    REG_MAG_CNTL1              0x0A
 #define    REG_INT_PIN_CFG            0x37
+#define    REG_ACCEL_XOUT_H           0x3B
+#define    REG_ACCEL_XOUT_L           0x3C
+#define    REG_ACCEL_YOUT_H           0x3D
+#define    REG_ACCEL_YOUT_L           0x3E
+#define    REG_ACCEL_ZOUT_H           0x3F
+#define    REG_ACCEL_ZOUT_L           0x40
+#define    REG_TEMP_OUT_H             0x41
+#define    REG_TEMP_OUT_L             0x42
+#define    REG_GYRO_XOUT_H            0x43
+#define    REG_GYRO_XOUT_L            0x44
+#define    REG_GYRO_YOUT_H            0x45
+#define    REG_GYRO_YOUT_L            0x46
+#define    REG_GYRO_ZOUT_H            0x47
+#define    REG_GYRO_ZOUT_L            0x48
+#define    REG_MAG_XOUT_L             0x03
+#define    REG_MAG_XOUT_H             0x04
+#define    REG_MAG_YOUT_L             0x05
+#define    REG_MAG_YOUT_H             0x06
+#define    REG_MAG_ZOUT_L             0x07
+#define    REG_MAG_ZOUT_H             0x08
 // MASKS, VALUES
 #define    MASK_BYPASS_ENABLE         0x02
 
@@ -27,7 +48,7 @@ int ACC_SCALE;
 // Initial time
 long int ti;
 // Output
-char printBuf[256];
+char printBuf[128];
 
 
 /*
@@ -57,6 +78,25 @@ void I2Cread(uint8_t Address, uint8_t Register, uint8_t Nbytes, uint8_t* Data) {
 }
 
 /*
+ * read single from the register "Register" on I2C device at address "Address"
+ * return the data
+ */
+uint8_t I2CreadByte(uint8_t Address, uint8_t Register) {
+  uint8_t data;
+  // Set register address
+  Wire.beginTransmission(Address);
+  Wire.write(Register);
+  Wire.endTransmission();
+
+  // Read byte
+  Wire.requestFrom(Address, (uint8_t) 1);
+  if (Wire.available())
+    data=Wire.read();
+
+  return(data);
+}
+
+/*
  * write a byte "Data" in device on the I2C device at "Address" at "Register"
  */
 void I2CwriteByte(uint8_t Address, uint8_t Register, uint8_t Data) {
@@ -82,22 +122,33 @@ void I2CwriteBit(uint8_t Address, uint8_t Register, uint8_t mask, boolean enable
 }
 
 /*
- * get accelerometer and gyroscope sensor values
+ * get accelerometer sensor values
  */
-void getAccelGyro(vector<int16_t> *a, vector<int16_t> *g) {
-  // Read accelerometer and gyroscope
-  uint8_t Buf[14];
-  I2Cread(MPU9250_ADDRESS,0x3B,14,Buf);
+void getAccel (vector<int16_t> *a) {
+  // read accelerometer
+  // - ?
+  a->x = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_XOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_XOUT_L));
+  // - ?
+  a->y = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_YOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_YOUT_L));
+  a->z = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_ZOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_ZOUT_L));
+}
 
-  // Create 16 bits values from 8 bits data
-  // .. Accelerometer
-  a->x=-(Buf[0]<<8 | Buf[1]);
-  a->y=-(Buf[2]<<8 | Buf[3]);
-  a->z=Buf[4]<<8 | Buf[5];
-  // .. Gyroscope
-  g->x=-(Buf[8]<<8 | Buf[9]);
-  g->y=-(Buf[10]<<8 | Buf[11]);
-  g->z=Buf[12]<<8 | Buf[13];
+/*
+ * get gyroscope sensor values
+ */
+void getGyro (vector<int16_t> *g) {
+  // read gyroscope
+  // - ?
+  g->x = (I2CreadByte(MPU9250_ADDRESS, REG_GYRO_XOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_GYRO_XOUT_L));
+  // - ?
+  g->y = (I2CreadByte(MPU9250_ADDRESS, REG_GYRO_YOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_GYRO_YOUT_L));
+  g->z = (I2CreadByte(MPU9250_ADDRESS, REG_GYRO_ZOUT_H) << 8 |
+      I2CreadByte(MPU9250_ADDRESS, REG_GYRO_ZOUT_L));
 }
 
 /*
@@ -132,8 +183,8 @@ void getMag(vector<int16_t> *m) {
  * ! in execution. use with caution!
  * !!! WARNING !!!
  */
-float getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
-  float heading;
+int16_t getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
+  int16_t heading;
 
   // convert to [-1; 1]
   vector<float> *realA = new vector<float>();
@@ -158,14 +209,27 @@ float getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
   //   realA->z = realA->z/2;
   // }
 
-  float pitch = asin(-realA->x);
-  float roll = asin(realA->y/cos(pitch));
-  float xh = m->x * cos(pitch) + m->z * sin(pitch);
-  float yh = m->x * sin(roll) * sin(pitch) + m->y * cos(roll) - m->z * sin(roll) * cos(pitch);
+  // float pitch = asin(-realA->x);
+  float pitch = -SpeedTrig.acos(-realA->x) + PI/2;
+  float sin_pitch = SpeedTrig.sin(pitch);
+  float cos_pitch = SpeedTrig.cos(pitch);
+  // float roll = asin(realA->y/cos_pitch);
+  float roll = -SpeedTrig.acos(realA->y/cos_pitch) + PI/2;
+  float cos_roll = SpeedTrig.cos(roll);
+  float sin_roll = SpeedTrig.sin(roll);
+
+  float xh = m->x * cos_pitch + m->z * sin_pitch;
+  float yh = m->x * sin_roll * sin_pitch + m->y * cos_roll - m->z * sin_roll * cos_pitch;
+
+  // float pitch = asin(-realA->x);
+  // float roll = asin(realA->y/cos(pitch));
+  // float xh = m->x * cos(pitch) + m->z * sin(pitch);
+  // float yh = m->x * sin(roll) * sin(pitch) + m->y * cos(roll) - m->z * sin(roll) * cos(pitch);
   // unused
   // float zh = -m->x * cos(roll) * sin(pitch) + m->y * sin(roll) + m->z * cos(roll) * cos(pitch);
+  // heading = round(180 * atan2(yh, xh)/PI);
 
-  heading = round(180 * atan2(yh, xh)/PI);
+  heading = int(round(180 * SpeedTrig.atan2(yh, xh)/PI));
   if (heading < 0) heading += 360;
 
   return (heading);
@@ -208,9 +272,9 @@ void MPU9250_init() {
   // Set gyroscope low pass filter at 5Hz
   I2CwriteByte(MPU9250_ADDRESS,26,0x06);
   // Configure gyroscope range
-  I2CwriteByte(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_1000_DPS);
+  I2CwriteByte(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_250_DPS);
   // Configure accelerometers range
-  I2CwriteByte(MPU9250_ADDRESS,28,ACC_FULL_SCALE_4_G);
+  I2CwriteByte(MPU9250_ADDRESS,28,ACC_FULL_SCALE_2_G);
   // DEBUG
   ACC_SCALE=1;
   // Set by pass mode for the magnetometers
@@ -237,54 +301,62 @@ void setup()
   MPU9250_init();
   // index = 0;
   ti = millis();
-  delay(1000);
+  delay(100);
 }
 
 /*
  * arduino loop function
  */
 void loop() {
-  // collect samples accel and gyro
-  getAccelGyro(accel, gyro);
+  // collect accel samples
+  getAccel(accel);
   // run filter
-  filter(accel, accel_flt, 0.5);
-  filter(gyro, gyro_flt, 0.5);
+  // filter(accel, accel_flt, 0.5);
+
+  // collect gyro samples
+  getGyro(gyro);
+  // run filter
+  // filter(gyro, gyro_flt, 0.5);
+
   // collect samples from mag
   getMag(mag);
   // run filter
-  filter(mag, mag_flt, 0.5);
+  // filter(mag, mag_flt, 0.5);
+
+  // DEBUG
+  // Serial.print("th: "); Serial.print(getTiltHeading(accel, mag));
+  // Serial.print(" h: "); Serial.print(getHeading(mag));
+  // Serial.println("");
 
   /*
    * Display time & all values
    */
-  // sprintf(printBuf, "[%8ld] accel: %6d/%6d/%6d gyro: %6d/%6d/%6d mag:%6d/%6d/%6d th: %3d, h: %3d",
+  // sprintf(printBuf, "[%10ld] accel: %6d/%6d/%6d gyro: %6d/%6d/%6d mag:%6d/%6d/%6d th: %3d, h: %3d",
   //     millis() - ti, accel->x, accel->y, accel->z,
   //     gyro->x, gyro->y, gyro->z, mag->x, mag->y, mag->z,
   //     int(getTiltHeading(accel, mag)), getHeading(mag));
 
   /*
-   * Display time & accel, mag, tilt heading, heading
+   * Display
    */
-  // sprintf(printBuf, "[%8ld] [accel %6d/%6d/%6d] [mag%6d/%6d/%6d] [th %3d, h %3d]",
-  //     millis() - ti, accel->x, accel->y, accel->z, mag->x, mag->y, mag->z,
-  //     int(getTiltHeading(accel, mag)), getHeading(mag));
+  /* just print accel as x,y,z, for plot-plane.py */
+  sprintf(printBuf, "%06d,%06d,%06d", accel->x, accel->y, accel->z);
 
-  /*
-   * Display time & tilt heading & heading
-   */
-  // sprintf(printBuf, "[%8ld] th: %3d, h: %3d",
-  //     millis() - ti, int(getTiltHeading(accel, mag)), getHeading(mag));
-
-  /*
-   * Display time & heading
-   */
-  sprintf(printBuf, "[%8ld] h: %3d", millis() - ti, getHeading(mag));
-
-  /*
-   * Display time & tilt heading
-   */
-  // sprintf(printBuf, "[%8ld] h: %3d",
-  //     millis() - ti, int(getTiltHeading(accel, mag)));
+  /* print multiple elements */
+  // clear
+  // sprintf(printBuf, "");
+  // add time
+  // sprintf(printBuf, "%s [%10ld]", printBuf, millis() - ti);
+  // add accel: x/y/z
+  // sprintf(printBuf, "%s accel: %6d/%6d/%6d", printBuf, accel->x, accel->y, accel->z);
+  // add gyro: x/y/z
+  // sprintf(printBuf, "%s gyro: %6d/%6d/%6d", printBuf, gyro->x, gyro->y, gyro->z);
+  // add mag: x/y/z
+  // sprintf(printBuf, "%s mag: %6d/%6d/%6d", printBuf, mag->x, mag->y, mag->z);
+  // add heading h: deg
+  // sprintf(printBuf, "%s h: %d", printBuf, getHeading(mag));
+  // add tilt compensated heading th: deg
+  // sprintf(printBuf, "%s th: %d", printBuf, getTiltHeading(accel, mag));
 
   // print
   Serial.println(printBuf);

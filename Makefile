@@ -24,7 +24,7 @@ ARDUINO_DIR       = /usr/share/arduino
 USER_LIB_PATH    :=  $(PROJECT_DIR)/libraries
 
 ## LIBRARIES
-ARDUINO_LIBS = Wire I2Cdev
+ARDUINO_LIBS = Wire I2Cdev SpeedTrig
 
 ### BOARD_TAG
 ### It must be set to the board you are currently using. (i.e uno, mega2560, etc.)
