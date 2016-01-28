@@ -3,22 +3,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import serial
+import math
 
 # initialize serial port
 ser = serial.Serial('/dev/ttyUSB0', 38400)
 
 # reference point
-point  = np.array([0, 0, 1])
-# create x,y,z
-xx, yy = np.meshgrid(range(50), range(50))
-zz = [0] * 50
+point  = np.array([0, 0, 0])
+# create gx,gy,gz
+rho, phi = np.meshgrid(range(0, 20), range(0, 360, 18))
+phi = phi + 9
+xx = rho/9 * np.cos(phi/180*math.pi)
+yy = rho/9 * np.sin(phi/180*math.pi)
+zz = [0] * 20
 
 # set plot to update
 plt.ion()
 # initialize plot
 plt3d = plt.figure().gca(projection='3d')
 surf = plt3d.plot_surface(xx, yy, zz[0], color='red')
-plt3d.set_zlim(-100, 100)
+plt3d.set_zlim(-1, 1)
 
 m = 32768
 # update surface
@@ -31,22 +35,38 @@ while True:
 
   data = data.decode('utf-8')
   # split serial data
-  sx, sy, sz = data.split(',')
-  # convert to number
-  x = int(sx)
-  y = int(sy)
-  z = int(sz)
-  # convert to [-1; 1]
-  x = round(x/m, 2)
-  y = round(y/m, 2)
-  z = round(z/m, 2)
+  serial_gx, serial_gy, serial_gz, serial_heading = data.split(',')
+  # convert serial readings to numbers
+  gx = int(serial_gx)
+  gy = int(serial_gy)
+  gz = int(serial_gz)
+  heading = int(serial_heading)
+  # calculate gmax for calibration
+  # print('gmax: %.2f' % (math.sqrt(gx*gx + gy*gy + gz*gz)))
+  gmax = 0.54
+  # convert angles to [-1; 1] and scale with gmax
+  gx = gx / m / gmax
+  gy = gy / m / gmax
+  gz = gz / m / gmax
 
-  d = np.sum(point*[x, y, z])
-  print('%.2f %.2f %.2f' % (x, y, z))
-  # calculate corresponding z
-  # dont divide by zero
-  if (z == 0): z = 0.01
-  zz = (x*xx + y*yy + d)*1./z
-  surf =  plt3d.plot_surface(xx, yy, zz, color='blue')
+  # skip when exceeding boundaries
+  if (math.sqrt(gx*gx + gy*gy + gz*gz)) <= 1:
+    rho, phi = np.meshgrid(range(0, 20), range(0, 360, 18))
+    phi = phi - heading + 9
+    xx = rho/9 * np.cos(phi/180*math.pi)
+    yy = rho/9 * np.sin(phi/180*math.pi)
+
+    d = np.sum(point*[gx, gy, gz])
+    print('%.2f %.2f %.2f %3d' % (gx, gy, gz, heading))
+    # calculate corresponding gz
+    # dont divide by zero
+    if (gz == 0): gz = 0.01
+    zz = (gx*xx + gy*yy + d)*1./gz
+  # else:
+  #   print('skip')
+
+  surf = plt3d.plot_surface(xx, yy, zz, color='blue')
+  plt.xlabel('north')
+  plt.ylabel('west')
   plt.draw()
   plt.pause(100E-6)
