@@ -340,7 +340,7 @@ void loop() {
    * Display
    */
   /* just print accel as x,y,z, for plot-plane.py */
-  sprintf(printBuf, "%06d,%06d,%06d", accel->x, accel->y, accel->z);
+  sprintf(printBuf, "%06d,%06d,%06d,%03d", accel->x, accel->y, accel->z, getHeading(mag));
 
   /* print multiple elements */
   // clear
