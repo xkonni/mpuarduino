@@ -27,11 +27,13 @@ plt3d.set_zlim(-1, 1)
 m = 32768
 # update surface
 while True:
-  surf.remove()
   data = ser.readline().rstrip()
-  if (len(data) < 5):
-    print('bad things happened, try again')
-    exit(1)
+  if (len(data) < 10):
+    print('retrying...')
+    continue
+
+    # print('bad things happened, try again')
+    # exit(1)
 
   data = data.decode('utf-8')
   # split serial data
@@ -56,16 +58,29 @@ while True:
     xx = rho/9 * np.cos(phi/180*math.pi)
     yy = rho/9 * np.sin(phi/180*math.pi)
 
+    # cos_beta = math.sqrt(gy*gy + gz*gz)
+    # alpha = math.asin(-gy / cos_beta)
+    # beta = math.acos(cos_beta)
+
+    # cos_beta = math.sqrt(gy*gy + gz*gz)
+    # alpha = math.asin(-gy / cos_beta)
+    # beta = math.acos(cos_beta)
+
+    print('alpha: %3.2f beta: %3.2f oder %3.2f' % (alpha * 180 / math.pi, beta * 180 / math.pi, math.asin(gx) * 180 / math.pi))
+
     d = np.sum(point*[gx, gy, gz])
-    print('%.2f %.2f %.2f %3d' % (gx, gy, gz, heading))
+    # print('%.2f %.2f %.2f %3d' % (gx, gy, gz, heading))
     # calculate corresponding gz
     # dont divide by zero
     if (gz == 0): gz = 0.01
     zz = (gx*xx + gy*yy + d)*1./gz
-  # else:
-  #   print('skip')
+  else:
+    print('skip')
 
+  # remove old surface
+  surf.remove()
   surf = plt3d.plot_surface(xx, yy, zz, color='blue')
+
   plt.xlabel('north')
   plt.ylabel('west')
   plt.draw()
