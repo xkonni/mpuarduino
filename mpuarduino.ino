@@ -126,13 +126,11 @@ void I2CwriteBit(uint8_t Address, uint8_t Register, uint8_t mask, boolean enable
  */
 void getAccel (vector<int16_t> *a) {
   // read accelerometer
-  // - ?
-  a->x = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_XOUT_H) << 8 |
+  a->x = -(I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_XOUT_H) << 8 |
       I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_XOUT_L));
-  // - ?
-  a->y = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_YOUT_H) << 8 |
+  a->y = -(I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_YOUT_H) << 8 |
       I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_YOUT_L));
-  a->z = (I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_ZOUT_H) << 8 |
+  a->z = -(I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_ZOUT_H) << 8 |
       I2CreadByte(MPU9250_ADDRESS, REG_ACCEL_ZOUT_L));
 }
 
