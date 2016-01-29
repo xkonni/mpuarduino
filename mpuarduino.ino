@@ -309,22 +309,17 @@ void loop() {
   // collect accel samples
   getAccel(accel);
   // run filter
-  // filter(accel, accel_flt, 0.5);
+  filter(accel, accel_flt, 0.5);
 
   // collect gyro samples
   getGyro(gyro);
   // run filter
-  // filter(gyro, gyro_flt, 0.5);
+  filter(gyro, gyro_flt, 0.5);
 
   // collect samples from mag
   getMag(mag);
   // run filter
-  // filter(mag, mag_flt, 0.5);
-
-  // DEBUG
-  // Serial.print("th: "); Serial.print(getTiltHeading(accel, mag));
-  // Serial.print(" h: "); Serial.print(getHeading(mag));
-  // Serial.println("");
+  filter(mag, mag_flt, 0.5);
 
   /*
    * Display time & all values
@@ -337,7 +332,7 @@ void loop() {
   /*
    * Display
    */
-  /* just print accel as x,y,z, for plot-plane.py */
+  /* just print accel as x,y,z,heading for plotplane.py */
   sprintf(printBuf, "%06d,%06d,%06d,%03d", accel->x, accel->y, accel->z, getHeading(mag));
 
   /* print multiple elements */
