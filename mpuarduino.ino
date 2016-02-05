@@ -169,9 +169,9 @@ void getMag(vector<int16_t> *m) {
   I2Cread(MAG_ADDRESS,0x03,7,Mag);
 
   // create 16 bits values from 8 bits data
-  m->x=-(Mag[3]<<8 | Mag[2]);
-  m->y=-(Mag[1]<<8 | Mag[0]);
-  m->z=-(Mag[5]<<8 | Mag[4]);
+  m->x=(Mag[1]<<8 | Mag[0]);
+  m->y=(Mag[3]<<8 | Mag[2]);
+  m->z=(Mag[5]<<8 | Mag[4]);
 }
 
 /*
@@ -239,9 +239,19 @@ int16_t getTiltHeading(vector<int16_t> *a, vector<int16_t> *m) {
 int16_t getHeading(vector<int16_t> *m) {
   int16_t heading;
 
-  double x = m->x;
-  double y = m->y;
-  heading = 180 * atan2(y, x) / PI;
+  double h_tmp;
+
+  double x, y;
+  if ((m->x == 0) && (m->y == 0)) {
+    Serial.println("avoid 0 0");
+    x = 1;
+  }
+  else {
+    x = m->x;
+    y = m->y;
+  }
+  h_tmp = atan2(y,x);
+  heading = (h_tmp * 180) / PI;
   if (heading < 0) heading += 360;
 
   return (heading);
@@ -273,8 +283,6 @@ void MPU9250_init() {
   I2CwriteByte(MPU9250_ADDRESS,27,GYRO_FULL_SCALE_250_DPS);
   // Configure accelerometers range
   I2CwriteByte(MPU9250_ADDRESS,28,ACC_FULL_SCALE_2_G);
-  // DEBUG
-  ACC_SCALE=1;
   // Set by pass mode for the magnetometers
   I2CwriteByte(MPU9250_ADDRESS,0x37,0x02);
   // Request continuous magnetometer measurements in 16 bits
@@ -333,7 +341,10 @@ void loop() {
    * Display
    */
   /* just print accel as x,y,z,heading for plotplane.py */
-  sprintf(printBuf, "%06d,%06d,%06d,%03d", accel->x, accel->y, accel->z, getHeading(mag));
+  // sprintf(printBuf, "%06d,%06d,%06d,%03d", accel->x, accel->y, accel->z, getHeading(mag));
+  /* just print accel as x,y,z, mag as x,y,z */
+  sprintf(printBuf, " %06d,%06d,%06d,%06d,%06d,%06d",
+      accel->x, accel->x, accel->z, mag->x, mag->y, mag->z);
 
   /* print multiple elements */
   // clear
