@@ -5,7 +5,6 @@ from mpl_toolkits.mplot3d import Axes3D
 import serial
 import math
 import time
-from itertools import product, combinations
 # for the arrow
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
@@ -21,6 +20,26 @@ class Arrow3D(FancyArrowPatch):
     xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, renderer.M)
     self.set_positions((xs[0],ys[0]),(xs[1],ys[1]))
     FancyArrowPatch.draw(self, renderer)
+
+def getHeading(ax, ay, az, mx, my, mz):
+  ax = ax / ( 1 << 15)
+  ay = ay / ( 1 << 15)
+  az = az / ( 1 << 15)
+  # pitch = asin(-realA->x)
+  pitch = -math.acos(-ax) + math.pi/2
+  sin_pitch = math.sin(pitch)
+  cos_pitch = math.cos(pitch)
+  # roll = asin(ay/cos_pitch)
+  roll = -math.acos(ay/cos_pitch) + math.pi/2
+  cos_roll = math.cos(roll)
+  sin_roll = math.sin(roll)
+
+  xh = mx * cos_pitch + mz * sin_pitch
+  yh = mx * sin_roll * sin_pitch + my * cos_roll - mz * sin_roll * cos_pitch
+
+  heading = 180 * math.atan2(yh, xh)/math.pi
+  if (heading < 0): heading += 360
+  return heading
 
 ## initialize serial port
 ser = serial.Serial('/dev/ttyUSB0', 38400)
@@ -81,11 +100,9 @@ plt.ylabel('WEST')
 
 ## maximum value, used for scaling
 m = 32768
+bmax = 0
 ## update surface
 while True:
-  # bytesToRead = ser.inWaiting()
-  # print('bytesToRead: %d' % (bytesToRead))
-
   ## wait for serial data
   while (ser.inWaiting() < 20):
     plt.pause(1E-6)
@@ -94,12 +111,16 @@ while True:
   data = ser.readline().rstrip()
   data = data.decode('utf-8')
   ## split serial data
-  serial_gx, serial_gy, serial_gz, serial_heading = data.split(',')
+  serial_gx, serial_gy, serial_gz, serial_mx, serial_my, serial_mz = data.split(',')
   ## convert serial readings to numbers
   gx = int(serial_gx)
   gy = int(serial_gy)
   gz = int(serial_gz)
-  gamma = int(serial_heading)
+  mx = int(serial_mx)
+  my = int(serial_my)
+  mz = int(serial_mz)
+  gamma = getHeading(gx, gy, gz, mx, my, mz)
+
   ## calculate gmax for calibration
   # print('gmax: %.2f' % (math.sqrt(gx*gx + gy*gy + gz*gz)))
   gmax = 0.54
@@ -108,10 +129,13 @@ while True:
   gy = gy / m / gmax
   gz = gz / m / gmax
   gamma = gamma / 180 * math.pi
-  # print('gx: %2.2f gy: %2.2f gz: %2.2f' % (gx, gy, gz))
+  print('gx: %2.2f gy: %2.2f gz: %2.2f' % (gx, gy, gz))
 
   ## skip when exceeding boundaries
-  if (math.sqrt(gx*gx + gy*gy + gz*gz)) <= 1:
+  bmax = math.sqrt(gx*gx + gy*gy + gz*gz)
+  print('bmax: %f' % bmax)
+  # if (bmax <= 1) and (bmax >= 0.8):
+  if (bmax <= 1.5):
     ## update alpha, beta angles
     cos_beta = math.sqrt(gy*gy + gz*gz)
     alpha = math.asin(-gy / cos_beta)
@@ -151,10 +175,10 @@ while True:
     ty = plt3d.text(*ey_rot, 'y', size=20, zorder=1, color="g")
     tz = plt3d.text(*ez_rot, 'z', size=20, zorder=1, color="b")
 
-    print('alpha: %3.2f beta: %3.2f gamma: %3.2f'
-          % (alpha * 180 / math.pi, beta * 180 / math.pi, gamma * 180 / math.pi))
+    print('alpha: %3.2f beta: %3.2f gamma: %3.2f bmax: %f'
+          % (alpha * 180 / math.pi, beta * 180 / math.pi, gamma * 180 / math.pi, bmax))
 
   else:
-    print('skip')
+    print('skip bmax: %f' % bmax)
 
   plt.draw()
